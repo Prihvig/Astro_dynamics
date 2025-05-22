@@ -1,0 +1,115 @@
+import math
+
+# === Constants ===
+Re_km = 6378.137            # Earth's radius [km]
+mu_km = 398600.4418         # Earth's gravitational parameter [km^3/s^2]
+mu_sun_km = 1.32712440018e11  # Sun's gravitational parameter [km^3/s^2]
+g0 = 9.80665                # Standard gravity [m/s^2]
+
+# === Initial and Final Orbit Altitudes and Transfer Point ===
+initial_orbit = 191.34411   # Altitude [km]
+final_orbit = 376310        # Altitude [km]
+point_b = 503873            # Altitude [km]
+
+# === Spacecraft Info ===
+m0 = 1000  # Initial spacecraft mass [kg]
+Isp = 400.0   # Specific impulse [s]
+Thrust = 500  # Thrust [N]
+
+# === Convert altitudes to orbital radii (km) ===
+r1 = initial_orbit + Re_km
+r2 = final_orbit + Re_km
+rb = point_b + Re_km
+
+# === Bi-Elliptic Transfer Function (All in km & km/s) ===
+def bi_elliptic_transfer(r1_km, r2_km, rb_km):
+    a_trans_1 = (r1_km + rb_km) / 2
+    a_trans_2 = (rb_km + r2_km) / 2
+
+    v1 = math.sqrt(mu_km / r1_km)
+    v2 = math.sqrt(mu_km / r2_km)
+
+    v_trans_1a = math.sqrt(2 * mu_km / r1_km - mu_km/ a_trans_1)
+    v_trans_1b = math.sqrt(2 * mu_km / rb_km - mu_km / a_trans_1)
+    v_trans_2b = math.sqrt(2 * mu_km / rb_km - mu_km / a_trans_2)
+    v_cicrcular = math.sqrt(mu_km / rb_km)
+    v_trans_2c = math.sqrt(2 * mu_km / r2_km - mu_km / a_trans_2)
+
+    delta_v_a = v_trans_1a - v1
+    delta_v_b = v_trans_2b - v_trans_1b
+    delta_v_c = v2 - v_trans_2c
+    total_delta_v = abs(delta_v_a) + abs(delta_v_b) + abs(delta_v_c)
+
+    transfer_time = math.pi * math.sqrt((a_trans_1**3) / mu_km) + math.pi * math.sqrt((a_trans_2**3) / mu_km)
+
+    return {
+        "r1": r1_km,
+        "rb": rb_km,
+        "r2": r2_km,
+        "a_trans_1": a_trans_1,
+        "a_trans_2": a_trans_2,
+        "v1": v1,
+        "v2": v2,
+        "v_trans_1a": v_trans_1a,
+        "v_trans_1b": v_trans_1b,
+        "v_trans_2b": v_trans_2b,
+        "v_cicrcular": v_cicrcular,
+        "v_trans_2c": v_trans_2c,
+        "delta_v_a": delta_v_a,
+        "delta_v_b": delta_v_b,
+        "delta_v_c": delta_v_c,
+        "total_delta_v": total_delta_v,
+        "transfer_time": transfer_time
+    }
+
+# === Rocket Equation ===
+def fuel_mass_required(delta_v_kmps, m0_kg, Isp_s):
+    delta_v_mps = delta_v_kmps * 1000
+    return m0_kg * (1 - math.exp(-delta_v_mps / (g0 * Isp_s)))
+
+# === Run Calculation ===
+results = bi_elliptic_transfer(r1, r2, rb)
+
+delta_v_total_kmps = results['total_delta_v']
+fuel_mass = fuel_mass_required(delta_v_total_kmps, m0, Isp)
+
+acceleration = Thrust / m0  # m/s²
+burn_time = delta_v_total_kmps * 1000 / acceleration  # seconds
+
+
+# === Print Results ===
+print("\nBi-Elliptic Transfer Results")
+print("===================================")
+print(f"Initial Orbit Radius (km):         {results['r1']:.2f}")
+print(f"Final Orbit Radius (km):           {results['r2']:.2f}")
+print(f"Transfer Point Radius (km):        {results['rb']:.2f}")
+print(f"a_trans_1 (m):                     {results['a_trans_1']:.2f}")
+print(f"a_trans_2 (m):                     {results['a_trans_2']:.2f}")
+
+print("\n=== Velocities (km/s) ===")
+print(f"Initial Velocity:                  {results['v1']:.6f} km/s")
+print(f"Final Velocity:                    {results['v2']:.6f} km/s")
+print(f"Velocity at PERIGEE of FIRST TRANSFER ellipse (From initial orbit r1, Vt1):     {results['v_trans_1a']:.6f} km/s")
+print(f"Velocity at APOGEE of FIRST TRANSFER ellipse(From transfer point rb, Va1):      {results['v_trans_1b']:.6f} km/s")
+print(f"Velocity at PERIGEE of SECOND TRANSFER ellipse (From transfer point rb, Va3):   {results['v_trans_2b']:.6f} km/s")
+print(f"Velocity at PERIGEE of circular orbit (At transfer point rb, Vco):              {results['v_cicrcular']:.6f} km/s")
+print(f"Velocity at APOGEE of SECOND TRANSFER ellipse (At final orbit r2, Vas):         {results['v_trans_2c']:.6f} km/s")
+
+print("\n=== Delta-Vs (m/s) ===")
+print(f"Delta-V A:                         {results['delta_v_a']:.6f} km/s")
+print(f"Delta-V B:                         {results['delta_v_b']:.6f} km/s")
+print(f"Delta-V C:                         {results['delta_v_c']:.6f} km/s")
+print(f"Total Delta-V:                     {delta_v_total_kmps:.6f} km/s")
+
+print("\n=== Time ===")
+print(f"Transfer Time (s):                 {results['transfer_time']:.2f}")
+print(f"Transfer Time (days):              {results['transfer_time'] / 86400:.2f}")
+print(f"Transfer Time (years):             {results['transfer_time'] / (86400*365.25):.4f}")
+
+print("\n=== Propulsion ===")
+print(f"Fuel Mass Required (kg):           {fuel_mass:.2f}")
+print(f"Burn Time (s):                     {burn_time:.2f}")
+print(f"Burn Time (hours):                 {burn_time/3600:.2f}")
+print(f"Burn Time (days):                  {burn_time/86400:.4f}")
+print(f"Acceleration (m/s^2):              {acceleration:.4f}")
+print(f"Thrust (N):                        {Thrust:.2f}")
